@@ -11,7 +11,11 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
 # ---------------- DATABASE CONFIG ---------------- #
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///schools.db"
+database_url = os.environ.get("DATABASE_URL", "").strip()
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///schools.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -103,6 +107,7 @@ CITY_TO_STATE = {
     for city in cities
 }
 _demo_data_checked = False
+_admin_seed_checked = False
 
 
 # ---------------- MODELS ---------------- #
@@ -184,12 +189,9 @@ def load_demo_school_data_if_needed():
 
     csv_candidates = [
         os.environ.get("DEMO_SCHOOLS_CSV", "").strip(),
-        r"c:\Users\hp\Downloads\india_school_dataset.csv",
         os.path.join(app.root_path, "india_school_dataset.csv"),
     ]
     csv_path = next((path for path in csv_candidates if path and os.path.exists(path)), None)
-    if not csv_path:
-        return
 
     existing_keys = {
         (name, city, board, price)
@@ -198,39 +200,99 @@ def load_demo_school_data_if_needed():
         ).all()
     }
     rows_to_insert = []
-    with open(csv_path, mode="r", encoding="utf-8-sig", newline="") as csv_file:
-        reader = csv.DictReader(csv_file)
-        for row in reader:
-            city = (row.get("City") or "").strip()
-            name = (row.get("School Name") or "").strip()
-            board = (row.get("Board") or "").strip()
-            price = parse_int(row.get("Annual Fees (INR)"), min_value=0)
 
-            if not city or not name or not board or price is None:
-                continue
+    if csv_path:
+        with open(csv_path, mode="r", encoding="utf-8-sig", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            for row in reader:
+                city = (row.get("City") or "").strip()
+                name = (row.get("School Name") or "").strip()
+                board = (row.get("Board") or "").strip()
+                price = parse_int(row.get("Annual Fees (INR)"), min_value=0)
 
-            school_key = (name, city, board, price)
-            if school_key in existing_keys:
-                continue
+                if not city or not name or not board or price is None:
+                    continue
 
-            inferred_state = CITY_TO_STATE.get(city.lower(), "Unknown")
-            rows_to_insert.append(
-                School(
-                    name=name,
-                    city=city,
-                    state=inferred_state,
-                    board=board,
-                    price=price,
-                    students=0,
-                    faculty=0,
-                    subjects="Demo data",
+                school_key = (name, city, board, price)
+                if school_key in existing_keys:
+                    continue
+
+                inferred_state = CITY_TO_STATE.get(city.lower(), "Unknown")
+                rows_to_insert.append(
+                    School(
+                        name=name,
+                        city=city,
+                        state=inferred_state,
+                        board=board,
+                        price=price,
+                        students=0,
+                        faculty=0,
+                        subjects="Demo data",
+                    )
                 )
-            )
-            existing_keys.add(school_key)
+                existing_keys.add(school_key)
+    else:
+        # Fallback seed for cloud deploys where CSV is not available.
+        boards = ["CBSE", "ICSE", "State Board", "Cambridge", "IB"]
+        i = 0
+        for state, cities in MASTER_STATES_WITH_CITIES.items():
+            for city in cities:
+                board = boards[i % len(boards)]
+                price = 35000 + (i * 2750) % 180000
+                name = f"{city} Demo School"
+                school_key = (name, city, board, price)
+                if school_key in existing_keys:
+                    i += 1
+                    continue
+
+                rows_to_insert.append(
+                    School(
+                        name=name,
+                        city=city,
+                        state=state,
+                        board=board,
+                        price=price,
+                        students=0,
+                        faculty=0,
+                        subjects="Demo data",
+                    )
+                )
+                existing_keys.add(school_key)
+                i += 1
 
     if rows_to_insert:
         db.session.bulk_save_objects(rows_to_insert)
         db.session.commit()
+
+
+def ensure_admin_user():
+    global _admin_seed_checked
+    if _admin_seed_checked:
+        return
+    _admin_seed_checked = True
+
+    admin_username = os.environ.get("ADMIN_USERNAME", "tanish_admin").strip()
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@educompare.in").strip().lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@12345").strip()
+
+    if not admin_username or not admin_email or not admin_password:
+        return
+
+    existing_admin = User.query.filter_by(email=admin_email).first()
+    if existing_admin:
+        if not existing_admin.is_admin:
+            existing_admin.is_admin = True
+            db.session.commit()
+        return
+
+    admin_user = User(
+        username=admin_username,
+        email=admin_email,
+        password=generate_password_hash(admin_password),
+        is_admin=True,
+    )
+    db.session.add(admin_user)
+    db.session.commit()
 
 
 def build_filters(source):
@@ -290,6 +352,7 @@ def render_home_page(schools, filters=None):
 
 @app.route("/")
 def home():
+    ensure_admin_user()
     load_demo_school_data_if_needed()
     filters = build_filters(request.args)
     schools = apply_search_filters(School.query, filters).all()
@@ -298,6 +361,7 @@ def home():
 
 @app.route("/search", methods=["POST"])
 def search():
+    ensure_admin_user()
     load_demo_school_data_if_needed()
     filters = build_filters(request.form)
     clean_filters = {k: v for k, v in filters.items() if v}
@@ -451,6 +515,7 @@ def admin_dashboard():
 
 with app.app_context():
     db.create_all()
+    ensure_admin_user()
 
 if __name__ == "__main__":
     app.run(debug=True)
