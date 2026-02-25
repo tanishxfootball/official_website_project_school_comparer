@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+    <h1>Find The Right School For Your Future</h1>
+    <p>"Education shapes destiny."</p>
+</section>
+
+<section class="filters">
+    <form method="GET" action="/">
+        <select name="state" id="state-select">
+            <option value="">State</option>
+            {% for state_name in states_with_cities.keys()|sort %}
+            <option value="{{ state_name }}" {% if selected_state == state_name %}selected{% endif %}>
+                {{ state_name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <select name="city" id="city-select" {% if not selected_state %}disabled{% endif %}>
+            <option value="">City</option>
+        </select>
+
+        <select name="board">
+            <option value="">Board</option>
+            {% for board_name in available_boards %}
+            <option value="{{ board_name }}" {% if selected_board == board_name %}selected{% endif %}>{{ board_name }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="number" name="min_fee" placeholder="Min Fee" min="0" value="{{ selected_min_fee }}">
+        <input type="number" name="max_fee" placeholder="Max Fee" min="0" value="{{ selected_max_fee }}">
+        <button type="submit">Search</button>
+        <a class="clear-btn" href="/">Clear</a>
+    </form>
+</section>
+
+<script>
+    const stateCities = {{ states_with_cities | tojson }};
+    const selectedState = {{ selected_state | tojson }};
+    const selectedCity = {{ selected_city | tojson }};
+
+    const stateSelect = document.getElementById("state-select");
+    const citySelect = document.getElementById("city-select");
+
+    function fillCities(stateValue, keepCity) {
+        citySelect.innerHTML = '<option value="">City</option>';
+
+        if (!stateValue || !stateCities[stateValue]) {
+            citySelect.disabled = true;
+            return;
+        }
+
+        citySelect.disabled = false;
+        stateCities[stateValue].forEach(function(city) {
+            const option = document.createElement("option");
+            option.value = city;
+            option.textContent = city;
+            if (keepCity && keepCity === city) {
+                option.selected = true;
+            }
+            citySelect.appendChild(option);
+        });
+    }
+
+    fillCities(selectedState, selectedCity);
+    stateSelect.addEventListener("change", function() {
+        fillCities(this.value, "");
+    });
+</script>
+
+<section class="school-grid">
+    {% for school in schools %}
+    <div class="school-card">
+        <h3>{{ school.name }}</h3>
+        <p>{{ school.city }}, {{ school.state }}</p>
+        <span class="badge">{{ school.board }}</span>
+        <p>&#8377;{{ school.price }}</p>
+        <a href="/school/{{ school.id }}" class="view-btn">View Details</a>
+    </div>
+    {% else %}
+    <p class="empty-state">No schools found for this filter. Try adjusting your search.</p>
+    {% endfor %}
+</section>
+
+{% endblock %}

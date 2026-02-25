@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Admin Dashboard</h2>
+
+<div class="admin-form">
+    <form method="POST">
+        <input type="text" name="name" placeholder="School Name" required>
+        <input type="text" name="city" placeholder="City" required>
+        <input type="text" name="state" placeholder="State" required>
+
+        <select name="board" required>
+            <option>CBSE</option>
+            <option>ICSE</option>
+            <option>State Board</option>
+        </select>
+
+        <input type="number" name="price" placeholder="Annual Fee" min="0" required>
+        <input type="number" name="students" placeholder="Student Count" min="0" required>
+        <input type="number" name="faculty" placeholder="Faculty Count" min="0" required>
+        <input type="text" name="subjects" placeholder="Subjects Offered" required>
+
+        <button type="submit">Add School</button>
+    </form>
+</div>
+
+<hr>
+
+<h3>Existing Schools</h3>
+{% for school in schools %}
+    <div class="card">
+        {{ school.name }} - {{ school.city }}
+    </div>
+{% endfor %}
+
+{% endblock %}

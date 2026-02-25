@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>{{ school.name }}</h2>
+<p>City: {{ school.city }}, {{ school.state }}</p>
+<p>Board: {{ school.board }}</p>
+<p>Fees: &#8377;{{ school.price }}</p>
+<p>Students: {{ school.students }}</p>
+<p>Faculty: {{ school.faculty }}</p>
+<p>Subjects: {{ school.subjects }}</p>
+
+<h3>Average Rating: &#9733; {{ avg_rating }}</h3>
+
+<h3>Reviews</h3>
+{% for review in reviews %}
+    <div class="card">
+        <p>&#9733; {{ review.rating }}</p>
+        <p>{{ review.comment }}</p>
+    </div>
+{% else %}
+    <p class="empty-state">No reviews yet. Be the first to write one.</p>
+{% endfor %}
+
+{% if session.get('user_id') %}
+<form method="POST" action="/add_review/{{ school.id }}" class="review-form">
+    <input type="number" name="rating" min="1" max="5" required placeholder="Rating (1-5)">
+    <textarea name="comment" required placeholder="Write your review"></textarea>
+    <button type="submit">Submit Review</button>
+</form>
+{% else %}
+<p><a href="/login">Log in</a> to post a review.</p>
+{% endif %}
+
+{% endblock %}
