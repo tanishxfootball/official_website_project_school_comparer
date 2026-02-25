@@ -207,6 +207,19 @@ footer {
     background: #e8f5e9;
 }
 
+.site-credit {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #4f5d52;
+    font-style: italic;
+    letter-spacing: 0.2px;
+}
+
+.credit-name {
+    font-weight: 700;
+    color: #2e7d32;
+}
+
 .demo-note {
     position: fixed;
     right: 10px;
